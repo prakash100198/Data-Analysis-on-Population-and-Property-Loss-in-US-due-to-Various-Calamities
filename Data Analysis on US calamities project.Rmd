@@ -1,0 +1,166 @@
+---
+title: "Project1 - Data Analysis on Population and Property Loss in US due to Various Calamities"
+
+output: html_document
+---
+## Synopsis
+In this report we will look at the infliction of various calamities on population and economic(property+crop) damage over the years from 1950 to 2011.
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+ 
+The question we are interested in answering are as follows:
+  
+- Across the United States, which types of events(EVTYPE variable) are most harmful with respect to population health?
+
+- Across the United States, which types of events have the greatest economic consequences?
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading and Preprocessing the Raw Data
+The dataset was taken from [National Weather Service Storm Data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2).
+There is also some documentation of the database available. Here you will find how some of the variables are constructed/defined.
+
+1. [National Weather Service Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+2. [National Climatic Data Center Storm Events FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+
+Loading libraries required for our analysis.
+```{r,message=F,warning=F}
+library(plyr)
+library(dplyr)
+library(ggplot2)
+```
+
+### Reading and Viewing its Properties
+```{r ,cache=T}
+data<-read.csv("repdata_data_StormData.csv.bz2")
+str(data)
+```
+
+So we see there many unwanted variables that are redundant and we don't need them at least not for our analysis.
+### Data transformation
+```{r}
+#variables we need to solve this analysis
+dframe<-data[,c("STATE","EVTYPE","FATALITIES","INJURIES","PROPDMG","PROPDMGEXP","CROPDMG","CROPDMGEXP")]
+dframe$CROPDMGEXP<-as.character(dframe$CROPDMGEXP)
+dframe$PROPDMGEXP<-as.character(dframe$PROPDMGEXP)
+head(dframe)
+```
+
+Now we add two more variables ,one would be total population damage variable showing the sum of injuries and fatalities caused by each calamity which will show total population damage and second variable would be total economic damage which was inflicted upon by the calamity.
+```{r }
+dframe$POPU.DAMAGE<-dframe[,"FATALITIES"]+dframe[,"INJURIES"]    #first variable
+dframe$TOTAL.PROP.DAMAGE<-rep(0,902297)                          #second variable initialized with zero in all rows
+```
+
+Now we will subset from the dframe data frame.The rows in PROPDMGEXP and CROPDMGEXP have various factors of which we will only include denomination marked as K(for Thousand),M(for Million),B(for Billion) and rest levels would be droped.
+```{r}
+deno<-c("K","M","B")
+df<-filter(dframe,PROPDMGEXP %in% deno & CROPDMGEXP %in% deno)
+```
+
+We have our subset in df dataframe and now we can fill our TOTAL.PROP.DAMAGE column by adding columns CROPDMG and PROPDMG according to the denominations as indicated by CROPDMGEXP and PROPDMGEXP respectively.
+```{r,cache=T}
+for(i in 1:nrow(df)){
+
+     if(df$PROPDMGEXP[i] == "K"&&df$CROPDMGEXP[i] == "K")
+        df$TOTAL.PROP.DAMAGE[i]<- df$PROPDMG[i]*1000 + df$CROPDMG[i]*1000
+  
+     else if(df$PROPDMGEXP[i]=="K"&&df$CROPDMGEXP[i] == "M")
+        df$TOTAL.PROP.DAMAGE[i]<- df$PROPDMG[i]*1000 + df$CROPDMG[i]*1000000
+  
+     else if(df$PROPDMGEXP[i]=="K"&&df$CROPDMGEXP[i] == "B")
+       df$TOTAL.PROP.DAMAGE[i]<- df$PROPDMG[i]*1000 + df$CROPDMG[i]*1000000000
+     
+     else if(df$PROPDMGEXP[i] == "M"&&df$CROPDMGEXP[i] == "K")
+       df$TOTAL.PROP.DAMAGE[i]<- df$PROPDMG[i]*1000000 + df$CROPDMG[i]*1000
+     
+     else if(df$PROPDMGEXP[i]=="M"&&df$CROPDMGEXP[i] == "M")
+       df$TOTAL.PROP.DAMAGE[i]<-  df$PROPDMG[i]*1000000 + df$CROPDMG[i]*1000000
+     
+     else if(df$PROPDMGEXP[i]=="M"&& df$CROPDMGEXP[i] == "B")
+       df$TOTAL.PROP.DAMAGE[i]<-  df$PROPDMG[i]*1000000 + df$CROPDMG[i]*1000000000
+     
+     else if(df$PROPDMGEXP[i] == "B"&&df$CROPDMGEXP[i] == "K")
+       df$TOTAL.PROP.DAMAGE[i]<- df$PROPDMG[i]*1000000000 + df$CROPDMG[i]*1000
+     
+     else if(df$PROPDMGEXP[i]=="B"&&df$CROPDMGEXP[i] == "M")
+       df$TOTAL.PROP.DAMAGE[i]<-  df$PROPDMG[i]*1000000000 + df$CROPDMG[i]*1000000
+     
+     else if(df$PROPDMGEXP[i]=="B"&& df$CROPDMGEXP[i] == "B")
+       df$TOTAL.PROP.DAMAGE[i]<-  df$PROPDMG[i]*1000000000 + df$CROPDMG[i]*1000000000
+     
+}
+```
+
+## Results
+
+Now we have prepared our dataframe df for further analysis.
+```{r}
+head(df)
+```
+
+Filter df on the basis of EVTYPE and reassign it to df.
+```{r}
+df1<-df%>%group_by(EVTYPE)%>%summarise(TOT.POPU.DAMAGE.PER.EVTYPE=sum(POPU.DAMAGE,na.rm = T),TOT.ECONOMIC.DAMAGE.PER.EVTYPE=sum(TOTAL.PROP.DAMAGE,na.rm = T))
+summary(df1)
+```
+
+After seeing summary we see that max fatalities in US is 13000+ and still mean is just 200+ so we will divide this dataset into 2 parts one part with total fatalities >1000 and second set with fatalaties<1000
+to get a clear picture.
+Since we are interested in knowing which event was most harmful to population so we will only look fatalities >1000
+```{r}
+df2<-filter(df1,TOT.POPU.DAMAGE.PER.EVTYPE>=1000)
+df2
+```
+
+### Plot 1 for population damage event wise
+```{r}
+g1<-ggplot(df2,aes(EVTYPE,TOT.POPU.DAMAGE.PER.EVTYPE,fill=EVTYPE))
+g1+geom_bar(stat = "identity",show.legend = F)+theme_bw() +geom_text(aes(label=TOT.POPU.DAMAGE.PER.EVTYPE),vjust=-0.3)+ggtitle("POPULATION DAMAGE(>1000)")+ylab("POPULATION DAMAGE PER EVTYPE")+ theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
+Here we can see that max damage is caused by tornado and is followed by flood and then ice storm.
+Therefore population wise ranking of top 5 event causing max damage is:
+
+- **TORNADO(13024)**
+- **FLOOD(6756)**
+- **ICE STORM(1629)**
+- **THUNDERSTORM WIND(1542)**
+- **HEAT(1376)**  
+
+#### Conclusion-1 
+Data analysis on this dataset shows that Tornado is by far population damage wise the most devastating calamity in US when compared to other calamities. When we sum up the economic loss of all calamities other than Tornado, this figure is no where close to loss of lives inflicted by Tornado.  
+  
+So government should be prepared for Tornado and should invest in proper technolohgy and infrastructure  that could inform people beforehand about such calamities (esp. Tornado) and reduce the Tornado's impact on human lives.      
+  
+  ___
+Now in the TOT.ECONOMIC.DAMAGE.PER.EVTYPE column we see alot variation and since we are interested in answering which types of events have the greatest economic consequences so well filter out the rows showing damage greater than 2B$.
+```{r}
+df3<-filter(df1,TOT.ECONOMIC.DAMAGE.PER.EVTYPE>2000000000)
+df3
+```
+
+### Plot 2 for total property loss(in Billion dollars) event wise
+```{r}
+g2<-ggplot(df3,aes(EVTYPE,TOT.ECONOMIC.DAMAGE.PER.EVTYPE/1000000000,fill=EVTYPE))
+g2+geom_bar(stat = "identity",show.legend = F)+theme_bw() +geom_text(aes(label=round(TOT.ECONOMIC.DAMAGE.PER.EVTYPE/1000000000,2)),vjust=-0.3)+ggtitle("ECONOMIC DAMAGE(>2B$)")+ylab("ECONOMIC DAMAGE PER EVTYPE(in Billion Dollars)")+ theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
+Max economic destruction caused by flood with 138.01B dollars followed by hurricane/typhoon with 29.34B dollars loss  3rd place is occupied by tornado with 16.52B$ loss of property.
+Therefore property  wise ranking of top 5 event causing max damage in dollar are:
+
+- **FLOOD(138.01B)**
+- **HURRICANE/TYPHOON(29.35B)**
+- **TORNADO(16.52B)**
+- **HURRICANE(12.41B)**
+- **RIVER FLOOD(10.11B)**  
+  
+#### Conclusion-2 
+Data analysis on this dataset shows that flood is by far economically most devastating calamity in US when compared to other calamities. When we sum up the economic loss of all calamities other than flood , this figure is no where close to economic loss inflicted by flood.  
+  
+So government should be prepared for flood more than anything and should invest in proper infrastructure that could reduce the flood's economic impact.  
+  
+
+        
+___  
+  
