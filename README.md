@@ -6,9 +6,8 @@ In this report we will look at the infliction of various calamities on populatio
   
 The question we are interested in answering are as follows:  
   
-Across the United States, which types of events(EVTYPE variable) are most harmful with respect to population health?  
-  
-Across the United States, which types of events have the greatest economic consequences?  
+1. Across the United States, which types of events(EVTYPE variable) are most harmful with respect to population health?   
+2. Across the United States, which types of events have the greatest economic consequences?   
   
 Loading and Preprocessing the Raw Data  
 The dataset was taken from [National Weather Service Storm Data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2). There is also some documentation of the database available. Here you will find how some of the variables are constructed/defined.  
